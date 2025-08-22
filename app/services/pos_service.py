@@ -256,7 +256,23 @@ class POSService:
     
     def search_customers(self, search_term: str) -> List[Dict]:
         """البحث عن العملاء"""
-        return self.customer_model.search_customers(search_term)
+        try:
+            search_pattern = f"%{search_term}%"
+            result = self.db.execute_query("""
+                SELECT id, name, phone, email, address
+                FROM customers 
+                WHERE name LIKE ? OR phone LIKE ? OR email LIKE ?
+                ORDER BY name
+                LIMIT 50
+            """, (search_pattern, search_pattern, search_pattern))
+            
+            return [dict(row) for row in result]
+            
+        except Exception as e:
+            from app.utils.logger import get_logger
+            logger = get_logger('pos')
+            logger.error(f"خطأ في البحث عن العملاء: {str(e)}")
+            return self.customer_model.search_customers(search_term)
     
     def get_recent_sales(self, limit: int = 10) -> List[Dict]:
         """الحصول على المبيعات الأخيرة"""

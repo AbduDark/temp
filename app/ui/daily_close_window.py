@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -6,19 +7,72 @@
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QLabel, QPushButton, QLineEdit, QComboBox,
-                              QTableWidget, QTableWidgetItem, QSpinBox,
-                              QDoubleSpinBox, QTextEdit, QFrame, QGroupBox,
-                              QMessageBox, QDateEdit, QHeaderView, QCheckBox,
-                              QScrollArea, QSplitter, QFileDialog)
-from PySide6.QtCore import Qt, QDate, QTimer
-from PySide6.QtGui import QFont, QColor, QPixmap
+                              QTableWidget, QTableWidgetItem, QTextEdit,
+                              QFrame, QGroupBox, QMessageBox, QScrollArea,
+                              QDateEdit, QHeaderView, QAbstractItemView,
+                              QProgressBar, QSplitter, QCheckBox)
+from PySide6.QtCore import Qt, QDate, QTimer, QThread, Signal
+from PySide6.QtGui import QFont, QColor
 from datetime import datetime, date
-import os
 import logging
 
 from app.utils.pdf_generator import PDFGenerator
 
 logger = logging.getLogger(__name__)
+
+
+class DailyCloseThread(QThread):
+    """خيط التقفيل اليومي"""
+    
+    finished = Signal(dict)
+    error = Signal(str)
+    progress = Signal(int)
+    
+    def __init__(self, pos_service, repair_service, inventory_service, close_date):
+        super().__init__()
+        self.pos_service = pos_service
+        self.repair_service = repair_service
+        self.inventory_service = inventory_service
+        self.close_date = close_date
+    
+    def run(self):
+        """تشغيل التقفيل اليومي"""
+        try:
+            self.progress.emit(10)
+            
+            # جمع بيانات المبيعات
+            sales_data = self.pos_service.get_daily_sales_summary(self.close_date)
+            self.progress.emit(30)
+            
+            # جمع بيانات الصيانة
+            repair_data = self.repair_service.get_repair_summary(self.close_date, self.close_date)
+            self.progress.emit(50)
+            
+            # جمع بيانات المخزون
+            inventory_data = self.inventory_service.get_inventory_summary()
+            self.progress.emit(70)
+            
+            # جمع حركة المخزون
+            stock_movements = self.inventory_service.get_stock_movements(
+                None, self.close_date, self.close_date
+            )
+            self.progress.emit(90)
+            
+            # تجميع البيانات
+            close_data = {
+                'date': self.close_date,
+                'sales': sales_data,
+                'repair': repair_data,
+                'inventory': inventory_data,
+                'stock_movements': stock_movements,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            self.progress.emit(100)
+            self.finished.emit(close_data)
+            
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class DailyCloseWindow(QWidget):
@@ -28,27 +82,28 @@ class DailyCloseWindow(QWidget):
         super().__init__()
         self.main_window = main_window
         self.pdf_generator = PDFGenerator()
+        self.close_thread = None
         self.current_close_data = None
         self.setup_ui()
         
     def setup_ui(self):
         """إعداد واجهة المستخدم"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(20)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(25)
         
         # عنوان الصفحة
         title_label = QLabel("التقفيل اليومي")
-        title_label.setFont(QFont("Arial", 24, QFont.Bold))
+        title_label.setFont(QFont("Segoe UI", 28, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("""
-            QLabel {
-                color: #2c3e50;
-                padding: 15px;
-                background-color: #ecf0f1;
-                border-radius: 10px;
-                margin-bottom: 20px;
-            }
+            color: #2c3e50; 
+            margin-bottom: 30px; 
+            padding: 20px;
+            background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                stop: 0 #e8f5e8, stop: 1 #c8e6c9);
+            border-radius: 15px;
+            border: 2px solid #4caf50;
         """)
         layout.addWidget(title_label)
         
@@ -56,40 +111,86 @@ class DailyCloseWindow(QWidget):
         toolbar = self.create_toolbar()
         layout.addWidget(toolbar)
         
-        # المحتوى الرئيسي
-        main_content = QSplitter(Qt.Horizontal)
+        # منطقة التمرير
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("""
+            QScrollArea { 
+                border: none; 
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #ecf0f1;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #bdc3c7;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+        """)
         
-        # الجانب الأيسر - ملخص التقفيل
-        left_panel = self.create_summary_panel()
-        main_content.addWidget(left_panel)
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setContentsMargins(20, 20, 20, 20)
+        scroll_layout.setSpacing(30)
         
-        # الجانب الأيمن - التفاصيل والإجراءات
-        right_panel = self.create_details_panel()
-        main_content.addWidget(right_panel)
+        # ملخص اليوم
+        self.setup_daily_summary(scroll_layout)
         
-        # تحديد نسب التقسيم
-        main_content.setSizes([400, 300])
+        # تفاصيل المبيعات
+        self.setup_sales_details(scroll_layout)
         
-        layout.addWidget(main_content)
+        # تفاصيل الصيانة
+        self.setup_repair_details(scroll_layout)
         
-        # شريط الحالة
-        status_bar = self.create_status_bar()
-        layout.addWidget(status_bar)
+        # حركة المخزون
+        self.setup_inventory_movements(scroll_layout)
+        
+        # إضافة مساحة في النهاية
+        scroll_layout.addStretch()
+        
+        scroll_area.setWidget(scroll_widget)
+        layout.addWidget(scroll_area)
+        
+        # شريط التقدم
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #bdc3c7;
+                border-radius: 10px;
+                text-align: center;
+                padding: 2px;
+                background-color: #ecf0f1;
+                font-weight: bold;
+            }
+            QProgressBar::chunk {
+                background-color: #4caf50;
+                border-radius: 8px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
     
     def create_toolbar(self):
         """إنشاء شريط الأدوات"""
         toolbar = QFrame()
-        toolbar.setFrameStyle(QFrame.StyledPanel)
+        toolbar.setFrameStyle(QFrame.NoFrame)
         toolbar.setStyleSheet("""
             QFrame {
-                background-color: white;
-                border-radius: 10px;
-                padding: 15px;
-                margin-bottom: 10px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #ffffff, stop: 1 #f8f9fa);
+                border-radius: 15px;
+                padding: 25px;
+                border: 2px solid #e9ecef;
+                margin-bottom: 20px;
             }
         """)
         
         layout = QHBoxLayout(toolbar)
+        layout.setContentsMargins(25, 20, 25, 20)
+        layout.setSpacing(20)
         
         # تاريخ التقفيل
         layout.addWidget(QLabel("تاريخ التقفيل:"))
@@ -98,538 +199,567 @@ class DailyCloseWindow(QWidget):
         self.close_date.setCalendarPopup(True)
         self.close_date.setStyleSheet("""
             QDateEdit {
-                font-size: 12px;
-                padding: 8px;
+                padding: 12px 15px;
                 border: 2px solid #bdc3c7;
-                border-radius: 5px;
+                border-radius: 10px;
+                font-size: 14px;
                 background-color: white;
-                min-width: 120px;
+                min-width: 150px;
             }
             QDateEdit:focus {
-                border-color: #3498db;
+                border: 2px solid #4caf50;
             }
         """)
-        self.close_date.dateChanged.connect(self.load_close_data)
         layout.addWidget(self.close_date)
         
         layout.addStretch()
         
         # أزرار العمل
-        load_btn = QPushButton("تحميل البيانات")
-        load_btn.setStyleSheet(self.get_button_style("#3498db"))
-        load_btn.clicked.connect(self.load_close_data)
-        layout.addWidget(load_btn)
+        generate_btn = QPushButton("إنتاج التقرير")
+        generate_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4caf50;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 12px 25px;
+                font-weight: bold;
+                font-size: 14px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
+        generate_btn.clicked.connect(self.generate_close_report)
+        layout.addWidget(generate_btn)
         
-        save_btn = QPushButton("حفظ التقفيل")
-        save_btn.setStyleSheet(self.get_button_style("#27ae60"))
-        save_btn.clicked.connect(self.save_close)
-        layout.addWidget(save_btn)
+        self.close_day_btn = QPushButton("إقفال اليوم")
+        self.close_day_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ff9800;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 12px 25px;
+                font-weight: bold;
+                font-size: 14px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #e68900;
+            }
+            QPushButton:pressed {
+                background-color: #cc7700;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+                color: #7f8c8d;
+            }
+        """)
+        self.close_day_btn.clicked.connect(self.close_day)
+        self.close_day_btn.setEnabled(False)
+        layout.addWidget(self.close_day_btn)
         
         export_btn = QPushButton("تصدير PDF")
-        export_btn.setStyleSheet(self.get_button_style("#e74c3c"))
+        export_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196f3;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 12px 25px;
+                font-weight: bold;
+                font-size: 14px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #1976d2;
+            }
+            QPushButton:pressed {
+                background-color: #1565c0;
+            }
+        """)
         export_btn.clicked.connect(self.export_pdf)
         layout.addWidget(export_btn)
         
         return toolbar
     
-    def create_summary_panel(self):
-        """إنشاء لوحة الملخص"""
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.StyledPanel)
-        panel.setStyleSheet("""
+    def setup_daily_summary(self, layout):
+        """إعداد ملخص اليوم"""
+        summary_frame = QFrame()
+        summary_frame.setFrameStyle(QFrame.NoFrame)
+        summary_frame.setStyleSheet("""
             QFrame {
-                background-color: white;
-                border-radius: 10px;
-                padding: 20px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #ffffff, stop: 1 #f8f9fa);
+                border-radius: 20px;
+                padding: 30px;
+                border: 2px solid #e9ecef;
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
             }
         """)
         
-        layout = QVBoxLayout(panel)
+        summary_layout = QVBoxLayout(summary_frame)
+        summary_layout.setContentsMargins(25, 25, 25, 25)
+        summary_layout.setSpacing(25)
         
         # عنوان القسم
-        section_title = QLabel("ملخص اليوم المالي")
-        section_title.setFont(QFont("Arial", 16, QFont.Bold))
-        section_title.setStyleSheet("color: #2c3e50; margin-bottom: 15px;")
-        layout.addWidget(section_title)
+        summary_title = QLabel("ملخص اليوم")
+        summary_title.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        summary_title.setStyleSheet("""
+            color: #2c3e50; 
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #e8f5e8;
+            border-radius: 10px;
+            border-left: 5px solid #4caf50;
+        """)
+        summary_layout.addWidget(summary_title)
         
         # بطاقات الإحصائيات
         stats_layout = QGridLayout()
+        stats_layout.setSpacing(20)
         
-        # المبيعات النقدية
-        self.cash_sales_card = self.create_stat_card("مبيعات نقدية", "0.00 ر.س", "#27ae60", "💰")
-        stats_layout.addWidget(self.cash_sales_card, 0, 0)
+        self.sales_revenue_card = self.create_stat_card("إجمالي المبيعات", "0 ر.س", "#4caf50")
+        stats_layout.addWidget(self.sales_revenue_card, 0, 0)
         
-        # مبيعات البطاقات
-        self.card_sales_card = self.create_stat_card("مبيعات البطاقات", "0.00 ر.س", "#3498db", "💳")
-        stats_layout.addWidget(self.card_sales_card, 0, 1)
+        self.transactions_count_card = self.create_stat_card("عدد المعاملات", "0", "#2196f3")
+        stats_layout.addWidget(self.transactions_count_card, 0, 1)
         
-        # مبيعات المحافظ الإلكترونية
-        self.wallet_sales_card = self.create_stat_card("المحافظ الإلكترونية", "0.00 ر.س", "#9b59b6", "📱")
-        stats_layout.addWidget(self.wallet_sales_card, 1, 0)
+        self.repair_revenue_card = self.create_stat_card("إيراد الصيانة", "0 ر.س", "#ff9800")
+        stats_layout.addWidget(self.repair_revenue_card, 0, 2)
         
-        # إجمالي المبيعات
-        self.total_sales_card = self.create_stat_card("إجمالي المبيعات", "0.00 ر.س", "#2c3e50", "📊")
-        stats_layout.addWidget(self.total_sales_card, 1, 1)
+        self.total_revenue_card = self.create_stat_card("إجمالي الإيراد", "0 ر.س", "#9c27b0")
+        stats_layout.addWidget(self.total_revenue_card, 0, 3)
         
-        # إيراد الصيانة
-        self.repair_revenue_card = self.create_stat_card("إيراد الصيانة", "0.00 ر.س", "#e67e22", "🔧")
-        stats_layout.addWidget(self.repair_revenue_card, 2, 0)
-        
-        # المرتجعات
-        self.returns_card = self.create_stat_card("المرتجعات", "0.00 ر.س", "#e74c3c", "↩️")
-        stats_layout.addWidget(self.returns_card, 2, 1)
-        
-        layout.addLayout(stats_layout)
-        
-        # صافي الإيراد
-        net_frame = QFrame()
-        net_frame.setStyleSheet("""
-            QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                            stop:0 #27ae60, stop:1 #2ecc71);
-                border-radius: 10px;
-                padding: 20px;
-                margin-top: 15px;
-            }
-        """)
-        net_layout = QVBoxLayout(net_frame)
-        
-        net_title = QLabel("صافي الإيراد")
-        net_title.setFont(QFont("Arial", 14, QFont.Bold))
-        net_title.setStyleSheet("color: white;")
-        net_title.setAlignment(Qt.AlignCenter)
-        net_layout.addWidget(net_title)
-        
-        self.net_revenue_label = QLabel("0.00 ر.س")
-        self.net_revenue_label.setFont(QFont("Arial", 24, QFont.Bold))
-        self.net_revenue_label.setStyleSheet("color: white;")
-        self.net_revenue_label.setAlignment(Qt.AlignCenter)
-        net_layout.addWidget(self.net_revenue_label)
-        
-        layout.addWidget(net_frame)
-        
-        return panel
+        summary_layout.addLayout(stats_layout)
+        layout.addWidget(summary_frame)
     
-    def create_details_panel(self):
-        """إنشاء لوحة التفاصيل"""
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.StyledPanel)
-        panel.setStyleSheet("""
+    def setup_sales_details(self, layout):
+        """إعداد تفاصيل المبيعات"""
+        sales_frame = QFrame()
+        sales_frame.setFrameStyle(QFrame.NoFrame)
+        sales_frame.setStyleSheet("""
             QFrame {
-                background-color: white;
-                border-radius: 10px;
-                padding: 20px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #ffffff, stop: 1 #f8f9fa);
+                border-radius: 20px;
+                padding: 30px;
+                border: 2px solid #e9ecef;
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
             }
         """)
         
-        layout = QVBoxLayout(panel)
+        sales_layout = QVBoxLayout(sales_frame)
+        sales_layout.setContentsMargins(25, 25, 25, 25)
+        sales_layout.setSpacing(20)
         
-        # المصروفات والتعديلات
-        expenses_group = QGroupBox("المصروفات والتعديلات")
-        expenses_group.setFont(QFont("Arial", 12, QFont.Bold))
-        expenses_layout = QGridLayout(expenses_group)
-        
-        # المصروفات اليومية
-        expenses_layout.addWidget(QLabel("المصروفات اليومية:"), 0, 0)
-        self.expenses_spin = QDoubleSpinBox()
-        self.expenses_spin.setMaximum(999999.99)
-        self.expenses_spin.setSuffix(" ر.س")
-        self.expenses_spin.valueChanged.connect(self.calculate_totals)
-        expenses_layout.addWidget(self.expenses_spin, 0, 1)
-        
-        # المشتريات
-        expenses_layout.addWidget(QLabel("المشتريات:"), 1, 0)
-        self.purchases_spin = QDoubleSpinBox()
-        self.purchases_spin.setMaximum(999999.99)
-        self.purchases_spin.setSuffix(" ر.س")
-        self.purchases_spin.valueChanged.connect(self.calculate_totals)
-        expenses_layout.addWidget(self.purchases_spin, 1, 1)
-        
-        # رصيد أول اليوم
-        expenses_layout.addWidget(QLabel("رصيد أول اليوم:"), 2, 0)
-        self.opening_balance_spin = QDoubleSpinBox()
-        self.opening_balance_spin.setMaximum(999999.99)
-        self.opening_balance_spin.setSuffix(" ر.س")
-        self.opening_balance_spin.valueChanged.connect(self.calculate_totals)
-        expenses_layout.addWidget(self.opening_balance_spin, 2, 1)
-        
-        layout.addWidget(expenses_group)
-        
-        # النتائج المحاسبية
-        results_group = QGroupBox("النتائج المحاسبية")
-        results_group.setFont(QFont("Arial", 12, QFont.Bold))
-        results_layout = QGridLayout(results_group)
-        
-        # صافي الربح
-        results_layout.addWidget(QLabel("صافي الربح:"), 0, 0)
-        self.net_profit_label = QLabel("0.00 ر.س")
-        self.net_profit_label.setFont(QFont("Arial", 12, QFont.Bold))
-        self.net_profit_label.setStyleSheet("color: #27ae60;")
-        results_layout.addWidget(self.net_profit_label, 0, 1)
-        
-        # رصيد آخر اليوم
-        results_layout.addWidget(QLabel("رصيد آخر اليوم:"), 1, 0)
-        self.closing_balance_label = QLabel("0.00 ر.س")
-        self.closing_balance_label.setFont(QFont("Arial", 12, QFont.Bold))
-        self.closing_balance_label.setStyleSheet("color: #2c3e50;")
-        results_layout.addWidget(self.closing_balance_label, 1, 1)
-        
-        layout.addWidget(results_group)
-        
-        # الملاحظات
-        notes_group = QGroupBox("ملاحظات التقفيل")
-        notes_group.setFont(QFont("Arial", 12, QFont.Bold))
-        notes_layout = QVBoxLayout(notes_group)
-        
-        self.notes_edit = QTextEdit()
-        self.notes_edit.setPlaceholderText("أدخل أي ملاحظات إضافية للتقفيل...")
-        self.notes_edit.setMaximumHeight(100)
-        self.notes_edit.setStyleSheet("""
-            QTextEdit {
-                border: 2px solid #bdc3c7;
-                border-radius: 5px;
-                padding: 10px;
-                font-size: 11px;
-            }
-            QTextEdit:focus {
-                border-color: #3498db;
-            }
+        # عنوان القسم
+        sales_title = QLabel("تفاصيل المبيعات")
+        sales_title.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        sales_title.setStyleSheet("""
+            color: #2c3e50; 
+            margin-bottom: 15px;
+            padding: 12px;
+            background-color: #e3f2fd;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
         """)
-        notes_layout.addWidget(self.notes_edit)
+        sales_layout.addWidget(sales_title)
         
-        layout.addWidget(notes_group)
+        # جدول المبيعات
+        self.sales_table = QTableWidget()
+        self.sales_table.setColumnCount(6)
+        self.sales_table.setHorizontalHeaderLabels([
+            "رقم الفاتورة", "الوقت", "العميل", "إجمالي المبلغ", "طريقة الدفع", "الخصم"
+        ])
+        self.sales_table.setAlternatingRowColors(True)
+        self.sales_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.sales_table.setMaximumHeight(300)
         
-        # رفع المرفقات
-        attachments_group = QGroupBox("المرفقات")
-        attachments_group.setFont(QFont("Arial", 12, QFont.Bold))
-        attachments_layout = QVBoxLayout(attachments_group)
+        # تخصيص الجدول
+        header = self.sales_table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
         
-        upload_btn = QPushButton("رفع صور الإيصالات")
-        upload_btn.setStyleSheet(self.get_button_style("#9b59b6"))
-        upload_btn.clicked.connect(self.upload_attachments)
-        attachments_layout.addWidget(upload_btn)
-        
-        self.attachments_list = QLabel("لا توجد مرفقات")
-        self.attachments_list.setStyleSheet("color: #7f8c8d; font-style: italic;")
-        attachments_layout.addWidget(self.attachments_list)
-        
-        layout.addWidget(attachments_group)
-        
-        layout.addStretch()
-        
-        return panel
+        sales_layout.addWidget(self.sales_table)
+        layout.addWidget(sales_frame)
     
-    def create_stat_card(self, title, value, color, icon=""):
+    def setup_repair_details(self, layout):
+        """إعداد تفاصيل الصيانة"""
+        repair_frame = QFrame()
+        repair_frame.setFrameStyle(QFrame.NoFrame)
+        repair_frame.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #ffffff, stop: 1 #f8f9fa);
+                border-radius: 20px;
+                padding: 30px;
+                border: 2px solid #e9ecef;
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            }
+        """)
+        
+        repair_layout = QVBoxLayout(repair_frame)
+        repair_layout.setContentsMargins(25, 25, 25, 25)
+        repair_layout.setSpacing(20)
+        
+        # عنوان القسم
+        repair_title = QLabel("تفاصيل الصيانة")
+        repair_title.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        repair_title.setStyleSheet("""
+            color: #2c3e50; 
+            margin-bottom: 15px;
+            padding: 12px;
+            background-color: #fff3e0;
+            border-radius: 8px;
+            border-left: 4px solid #ff9800;
+        """)
+        repair_layout.addWidget(repair_title)
+        
+        # جدول الصيانة
+        self.repair_table = QTableWidget()
+        self.repair_table.setColumnCount(5)
+        self.repair_table.setHorizontalHeaderLabels([
+            "رقم التذكرة", "العميل", "الجهاز", "الحالة", "التكلفة"
+        ])
+        self.repair_table.setAlternatingRowColors(True)
+        self.repair_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.repair_table.setMaximumHeight(300)
+        
+        # تخصيص الجدول
+        header = self.repair_table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        
+        repair_layout.addWidget(self.repair_table)
+        layout.addWidget(repair_frame)
+    
+    def setup_inventory_movements(self, layout):
+        """إعداد حركة المخزون"""
+        inventory_frame = QFrame()
+        inventory_frame.setFrameStyle(QFrame.NoFrame)
+        inventory_frame.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #ffffff, stop: 1 #f8f9fa);
+                border-radius: 20px;
+                padding: 30px;
+                border: 2px solid #e9ecef;
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            }
+        """)
+        
+        inventory_layout = QVBoxLayout(inventory_frame)
+        inventory_layout.setContentsMargins(25, 25, 25, 25)
+        inventory_layout.setSpacing(20)
+        
+        # عنوان القسم
+        inventory_title = QLabel("حركة المخزون")
+        inventory_title.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        inventory_title.setStyleSheet("""
+            color: #2c3e50; 
+            margin-bottom: 15px;
+            padding: 12px;
+            background-color: #f3e5f5;
+            border-radius: 8px;
+            border-left: 4px solid #9c27b0;
+        """)
+        inventory_layout.addWidget(inventory_title)
+        
+        # جدول حركة المخزون
+        self.inventory_table = QTableWidget()
+        self.inventory_table.setColumnCount(5)
+        self.inventory_table.setHorizontalHeaderLabels([
+            "الوقت", "المنتج", "النوع", "الكمية", "المرجع"
+        ])
+        self.inventory_table.setAlternatingRowColors(True)
+        self.inventory_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.inventory_table.setMaximumHeight(300)
+        
+        # تخصيص الجدول
+        header = self.inventory_table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        
+        inventory_layout.addWidget(self.inventory_table)
+        layout.addWidget(inventory_frame)
+    
+    def create_stat_card(self, title, value, color):
         """إنشاء بطاقة إحصائية"""
         card = QFrame()
-        card.setFrameStyle(QFrame.StyledPanel)
+        card.setFrameStyle(QFrame.NoFrame)
         card.setStyleSheet(f"""
             QFrame {{
-                background-color: {color};
-                border-radius: 10px;
-                padding: 15px;
-                margin: 5px;
-                min-height: 80px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {color}, stop: 1 {self.darken_color(color)});
+                border-radius: 15px;
+                padding: 25px;
+                margin: 10px;
+                border: 3px solid rgba(255, 255, 255, 0.2);
+                min-height: 120px;
             }}
             QLabel {{
                 color: white;
                 border: none;
+                background: transparent;
             }}
         """)
         
         layout = QVBoxLayout(card)
-        layout.setSpacing(5)
-        
-        # العنوان مع الأيقونة
-        header_layout = QHBoxLayout()
-        
-        if icon:
-            icon_label = QLabel(icon)
-            icon_label.setFont(QFont("Arial", 16))
-            header_layout.addWidget(icon_label)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
         
         title_label = QLabel(title)
-        title_label.setFont(QFont("Arial", 10, QFont.Bold))
-        header_layout.addWidget(title_label)
-        header_layout.addStretch()
+        title_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
         
-        layout.addLayout(header_layout)
-        
-        # القيمة
         value_label = QLabel(value)
-        value_label.setFont(QFont("Arial", 14, QFont.Bold))
+        value_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
         value_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(value_label)
         
-        # حفظ مرجع للقيمة للتحديث لاحقاً
+        # حفظ مرجع للقيمة
         card.value_label = value_label
         
         return card
     
-    def create_status_bar(self):
-        """إنشاء شريط الحالة"""
-        status_bar = QFrame()
-        status_bar.setFrameStyle(QFrame.StyledPanel)
-        status_bar.setStyleSheet("""
-            QFrame {
-                background-color: #34495e;
-                border-radius: 5px;
-                padding: 10px;
-            }
-        """)
-        
-        layout = QHBoxLayout(status_bar)
-        
-        self.status_label = QLabel("جاهز")
-        self.status_label.setStyleSheet("color: white; font-weight: bold;")
-        layout.addWidget(self.status_label)
-        
-        layout.addStretch()
-        
-        # معلومات آخر حفظ
-        self.last_save_label = QLabel("")
-        self.last_save_label.setStyleSheet("color: #bdc3c7;")
-        layout.addWidget(self.last_save_label)
-        
-        return status_bar
-    
-    def get_button_style(self, color):
-        """الحصول على نمط الأزرار"""
-        return f"""
-            QPushButton {{
-                background-color: {color};
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 20px;
-                font-weight: bold;
-                font-size: 12px;
-                min-width: 100px;
-            }}
-            QPushButton:hover {{
-                background-color: {self.darken_color(color)};
-            }}
-            QPushButton:pressed {{
-                background-color: {self.darken_color(color, 0.8)};
-            }}
-        """
-    
-    def darken_color(self, hex_color, factor=0.9):
+    def darken_color(self, hex_color):
         """تغميق اللون"""
         color = QColor(hex_color)
-        return color.darker(int(100/factor)).name()
+        return color.darker(120).name()
     
     def refresh_data(self):
         """تحديث البيانات"""
-        self.load_close_data()
+        self.generate_close_report()
     
-    def load_close_data(self):
-        """تحميل بيانات التقفيل"""
-        try:
-            selected_date = self.close_date.date().toString("yyyy-MM-dd")
-            self.status_label.setText(f"جاري تحميل بيانات {selected_date}...")
-            
-            # الحصول على بيانات التقفيل من الخدمة
-            close_data = self.main_window.report_service.get_daily_close_report(selected_date)
-            
-            if close_data:
-                self.current_close_data = close_data
-                self.display_close_data(close_data)
-                self.status_label.setText(f"تم تحميل بيانات {selected_date}")
-            else:
-                self.clear_display()
-                self.status_label.setText(f"لا توجد بيانات للتاريخ {selected_date}")
-                
-        except Exception as e:
-            logger.error(f"خطأ في تحميل بيانات التقفيل: {str(e)}")
-            QMessageBox.critical(
-                self, "خطأ", 
-                f"فشل في تحميل بيانات التقفيل:\n{str(e)}"
-            )
-            self.status_label.setText("خطأ في التحميل")
+    def generate_close_report(self):
+        """إنتاج تقرير التقفيل"""
+        close_date = self.close_date.date().toString("yyyy-MM-dd")
+        
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        
+        self.close_thread = DailyCloseThread(
+            self.main_window.pos_service,
+            self.main_window.repair_service,
+            self.main_window.inventory_service,
+            close_date
+        )
+        
+        self.close_thread.finished.connect(self.on_report_finished)
+        self.close_thread.error.connect(self.on_report_error)
+        self.close_thread.progress.connect(self.progress_bar.setValue)
+        
+        self.close_thread.start()
+    
+    def on_report_finished(self, data):
+        """عند انتهاء إنتاج التقرير"""
+        self.progress_bar.setVisible(False)
+        self.current_close_data = data
+        
+        self.display_close_data(data)
+        self.close_day_btn.setEnabled(True)
+    
+    def on_report_error(self, error):
+        """عند حدوث خطأ في إنتاج التقرير"""
+        self.progress_bar.setVisible(False)
+        QMessageBox.critical(self, "خطأ", f"فشل في إنتاج تقرير التقفيل:\n{error}")
     
     def display_close_data(self, data):
         """عرض بيانات التقفيل"""
-        # تحديث البطاقات
-        self.cash_sales_card.value_label.setText(f"{data.get('cash_sales', 0):.2f} ر.س")
-        self.card_sales_card.value_label.setText(f"{data.get('card_sales', 0):.2f} ر.س")
-        self.wallet_sales_card.value_label.setText(f"{data.get('wallet_sales', 0):.2f} ر.س")
-        self.total_sales_card.value_label.setText(f"{data.get('total_sales', 0):.2f} ر.س")
-        self.repair_revenue_card.value_label.setText(f"{data.get('repair_revenue', 0):.2f} ر.س")
-        self.returns_card.value_label.setText(f"{data.get('returns', 0):.2f} ر.س")
-        
-        # تحديث صافي الإيراد
-        net_revenue = data.get('total_revenue', 0)
-        self.net_revenue_label.setText(f"{net_revenue:.2f} ر.س")
-        
-        # تحديث المدخلات
-        self.expenses_spin.setValue(data.get('expenses', 0))
-        self.purchases_spin.setValue(data.get('purchases', 0))
-        self.opening_balance_spin.setValue(data.get('opening_balance', 0))
-        
-        # تحديث الملاحظات
-        self.notes_edit.setPlainText(data.get('notes', ''))
-        
-        # حساب الإجماليات
-        self.calculate_totals()
-    
-    def clear_display(self):
-        """مسح العرض"""
-        # مسح البطاقات
-        cards = [
-            self.cash_sales_card, self.card_sales_card, self.wallet_sales_card,
-            self.total_sales_card, self.repair_revenue_card, self.returns_card
-        ]
-        
-        for card in cards:
-            card.value_label.setText("0.00 ر.س")
-        
-        self.net_revenue_label.setText("0.00 ر.س")
-        
-        # مسح المدخلات
-        self.expenses_spin.setValue(0)
-        self.purchases_spin.setValue(0)
-        self.opening_balance_spin.setValue(0)
-        self.notes_edit.clear()
-        
-        # مسح النتائج
-        self.net_profit_label.setText("0.00 ر.س")
-        self.closing_balance_label.setText("0.00 ر.س")
-        
-        self.current_close_data = None
-    
-    def calculate_totals(self):
-        """حساب الإجماليات"""
-        if not self.current_close_data:
-            return
-        
         try:
-            # الإيرادات
-            total_revenue = self.current_close_data.get('total_revenue', 0)
+            sales_data = data.get('sales', {})
+            repair_data = data.get('repair', {})
             
-            # المصروفات
-            expenses = self.expenses_spin.value()
-            purchases = self.purchases_spin.value()
-            returns = self.current_close_data.get('returns', 0)
+            # تحديث البطاقات
+            sales_revenue = sales_data.get('total_amount', 0)
+            repair_revenue = repair_data.get('total_revenue', 0)
+            total_revenue = sales_revenue + repair_revenue
             
-            # صافي الربح
-            net_profit = total_revenue - expenses - purchases - returns
+            self.sales_revenue_card.value_label.setText(f"{sales_revenue:.0f} ر.س")
+            self.transactions_count_card.value_label.setText(str(sales_data.get('total_transactions', 0)))
+            self.repair_revenue_card.value_label.setText(f"{repair_revenue:.0f} ر.س")
+            self.total_revenue_card.value_label.setText(f"{total_revenue:.0f} ر.س")
             
-            # الأرصدة
-            opening_balance = self.opening_balance_spin.value()
-            closing_balance = opening_balance + net_profit
+            # عرض تفاصيل المبيعات
+            self.display_sales_details(data)
             
-            # تحديث العرض
-            self.net_profit_label.setText(f"{net_profit:.2f} ر.س")
-            self.closing_balance_label.setText(f"{closing_balance:.2f} ر.س")
+            # عرض تفاصيل الصيانة
+            self.display_repair_details(data)
             
-            # تلوين صافي الربح
-            if net_profit >= 0:
-                self.net_profit_label.setStyleSheet("color: #27ae60; font-weight: bold;")
-            else:
-                self.net_profit_label.setStyleSheet("color: #e74c3c; font-weight: bold;")
+            # عرض حركة المخزون
+            self.display_inventory_movements(data)
+            
+        except Exception as e:
+            logger.error(f"خطأ في عرض بيانات التقفيل: {str(e)}")
+    
+    def display_sales_details(self, data):
+        """عرض تفاصيل المبيعات"""
+        try:
+            close_date = data['date']
+            sales = self.main_window.pos_service.get_sales_by_date(close_date)
+            
+            self.sales_table.setRowCount(len(sales))
+            
+            for row, sale in enumerate(sales):
+                self.sales_table.setItem(row, 0, QTableWidgetItem(str(sale['id'])))
+                
+                # تنسيق الوقت
+                time_str = sale['created_at'][11:16] if len(sale['created_at']) > 16 else sale['created_at']
+                self.sales_table.setItem(row, 1, QTableWidgetItem(time_str))
+                
+                customer = sale.get('customer_name', 'غير محدد')
+                self.sales_table.setItem(row, 2, QTableWidgetItem(customer))
+                
+                amount_item = QTableWidgetItem(f"{sale['final_amount']:.2f}")
+                amount_item.setTextAlignment(Qt.AlignCenter)
+                self.sales_table.setItem(row, 3, amount_item)
+                
+                payment_method = self.main_window.pos_service.get_payment_method_name(sale['payment_method'])
+                self.sales_table.setItem(row, 4, QTableWidgetItem(payment_method))
+                
+                discount_item = QTableWidgetItem(f"{sale.get('discount_amount', 0):.2f}")
+                discount_item.setTextAlignment(Qt.AlignCenter)
+                self.sales_table.setItem(row, 5, discount_item)
                 
         except Exception as e:
-            logger.error(f"خطأ في حساب الإجماليات: {str(e)}")
+            logger.error(f"خطأ في عرض تفاصيل المبيعات: {str(e)}")
     
-    def save_close(self):
-        """حفظ التقفيل"""
-        if not self.current_close_data:
-            QMessageBox.warning(
-                self, "تحذير",
-                "لا توجد بيانات للحفظ. يرجى تحميل البيانات أولاً."
-            )
-            return
-        
+    def display_repair_details(self, data):
+        """عرض تفاصيل الصيانة"""
         try:
-            # إعداد بيانات الحفظ
-            close_date = self.close_date.date().toString("yyyy-MM-dd")
+            close_date = data['date']
+            repairs = self.main_window.repair_service.get_repair_tickets_by_date(close_date)
             
-            save_data = {
-                'close_date': close_date,
-                'cash_sales': self.current_close_data.get('cash_sales', 0),
-                'card_sales': self.current_close_data.get('card_sales', 0),
-                'wallet_sales': self.current_close_data.get('wallet_sales', 0),
-                'total_sales': self.current_close_data.get('total_sales', 0),
-                'expenses': self.expenses_spin.value(),
-                'purchases': self.purchases_spin.value(),
-                'returns': self.current_close_data.get('returns', 0),
-                'net_profit': float(self.net_profit_label.text().replace(' ر.س', '')),
-                'opening_balance': self.opening_balance_spin.value(),
-                'closing_balance': float(self.closing_balance_label.text().replace(' ر.س', '')),
-                'notes': self.notes_edit.toPlainText().strip()
-            }
+            self.repair_table.setRowCount(len(repairs))
             
-            # حفظ البيانات
-            success = self.main_window.report_service.save_daily_close(save_data)
-            
-            if success:
-                QMessageBox.information(
-                    self, "نجح",
-                    f"تم حفظ تقفيل يوم {close_date} بنجاح"
-                )
+            for row, repair in enumerate(repairs):
+                self.repair_table.setItem(row, 0, QTableWidgetItem(str(repair['id'])))
                 
-                # تحديث شريط الحالة
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                self.last_save_label.setText(f"آخر حفظ: {now}")
-                self.status_label.setText("تم الحفظ بنجاح")
+                customer = repair.get('customer_name', 'غير محدد')
+                self.repair_table.setItem(row, 1, QTableWidgetItem(customer))
                 
-            else:
-                QMessageBox.critical(
-                    self, "خطأ",
-                    "فشل في حفظ بيانات التقفيل"
-                )
+                device = repair['device_info']
+                self.repair_table.setItem(row, 2, QTableWidgetItem(device))
+                
+                status = self.main_window.repair_service.get_status_name(repair['status'])
+                status_item = QTableWidgetItem(status)
+                status_item.setTextAlignment(Qt.AlignCenter)
+                self.repair_table.setItem(row, 3, status_item)
+                
+                cost = repair.get('final_cost') or repair.get('estimated_cost', 0)
+                cost_item = QTableWidgetItem(f"{cost:.2f}")
+                cost_item.setTextAlignment(Qt.AlignCenter)
+                self.repair_table.setItem(row, 4, cost_item)
                 
         except Exception as e:
-            logger.error(f"خطأ في حفظ التقفيل: {str(e)}")
-            QMessageBox.critical(
-                self, "خطأ",
-                f"حدث خطأ في حفظ التقفيل:\n{str(e)}"
-            )
+            logger.error(f"خطأ في عرض تفاصيل الصيانة: {str(e)}")
+    
+    def display_inventory_movements(self, data):
+        """عرض حركة المخزون"""
+        try:
+            movements = data.get('stock_movements', [])
+            
+            self.inventory_table.setRowCount(len(movements))
+            
+            for row, movement in enumerate(movements):
+                # الوقت
+                time_str = movement['created_at'][11:16] if len(movement['created_at']) > 16 else movement['created_at']
+                self.inventory_table.setItem(row, 0, QTableWidgetItem(time_str))
+                
+                # المنتج
+                product_name = movement.get('product_name', 'غير معروف')
+                self.inventory_table.setItem(row, 1, QTableWidgetItem(product_name))
+                
+                # النوع
+                movement_type = "دخول" if movement['movement_type'] == 'in' else "خروج"
+                type_item = QTableWidgetItem(movement_type)
+                type_item.setTextAlignment(Qt.AlignCenter)
+                
+                if movement['movement_type'] == 'in':
+                    type_item.setBackground(QColor("#4caf50"))
+                else:
+                    type_item.setBackground(QColor("#f44336"))
+                
+                type_item.setForeground(QColor("white"))
+                self.inventory_table.setItem(row, 2, type_item)
+                
+                # الكمية
+                quantity_item = QTableWidgetItem(str(movement['quantity']))
+                quantity_item.setTextAlignment(Qt.AlignCenter)
+                self.inventory_table.setItem(row, 3, quantity_item)
+                
+                # المرجع
+                reference = movement.get('reference_type', '')
+                self.inventory_table.setItem(row, 4, QTableWidgetItem(reference))
+                
+        except Exception as e:
+            logger.error(f"خطأ في عرض حركة المخزون: {str(e)}")
+    
+    def close_day(self):
+        """إقفال اليوم"""
+        if not self.current_close_data:
+            QMessageBox.warning(self, "تحذير", "يجب إنتاج التقرير أولاً")
+            return
+        
+        reply = QMessageBox.question(
+            self, "تأكيد",
+            "هل أنت متأكد من إقفال اليوم؟\n"
+            "لن يمكن تعديل البيانات بعد الإقفال.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            try:
+                # حفظ بيانات الإقفال
+                close_date = self.current_close_data['date']
+                success = self.main_window.pos_service.close_day(close_date, self.current_close_data)
+                
+                if success:
+                    QMessageBox.information(
+                        self, "نجح",
+                        f"تم إقفال يوم {close_date} بنجاح"
+                    )
+                    self.close_day_btn.setEnabled(False)
+                else:
+                    QMessageBox.critical(self, "خطأ", "فشل في إقفال اليوم")
+                    
+            except Exception as e:
+                logger.error(f"خطأ في إقفال اليوم: {str(e)}")
+                QMessageBox.critical(self, "خطأ", f"حدث خطأ في إقفال اليوم:\n{str(e)}")
     
     def export_pdf(self):
-        """تصدير التقفيل إلى PDF"""
+        """تصدير التقرير إلى PDF"""
         if not self.current_close_data:
-            QMessageBox.warning(
-                self, "تحذير",
-                "لا توجد بيانات للتصدير. يرجى تحميل البيانات أولاً."
-            )
+            QMessageBox.warning(self, "تحذير", "لا يوجد تقرير لتصديره")
             return
         
         try:
-            close_date = self.close_date.date().toString("yyyy-MM-dd")
-            timestamp = datetime.now().strftime("%H%M%S")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            close_date = self.current_close_data['date']
             filename = f"daily_close_{close_date}_{timestamp}.pdf"
             filepath = f"reports/daily/{filename}"
             
             # إنشاء مجلد التقارير إذا لم يكن موجوداً
+            import os
             os.makedirs("reports/daily", exist_ok=True)
             
-            # إعداد بيانات التقرير
-            report_data = {
-                'close_date': close_date,
-                'cash_sales': self.current_close_data.get('cash_sales', 0),
-                'card_sales': self.current_close_data.get('card_sales', 0),
-                'wallet_sales': self.current_close_data.get('wallet_sales', 0),
-                'total_sales': self.current_close_data.get('total_sales', 0),
-                'repair_revenue': self.current_close_data.get('repair_revenue', 0),
-                'returns': self.current_close_data.get('returns', 0),
-                'total_revenue': self.current_close_data.get('total_revenue', 0),
-                'expenses': self.expenses_spin.value(),
-                'purchases': self.purchases_spin.value(),
-                'net_profit': float(self.net_profit_label.text().replace(' ر.س', '')),
-                'opening_balance': self.opening_balance_spin.value(),
-                'closing_balance': float(self.closing_balance_label.text().replace(' ر.س', '')),
-                'notes': self.notes_edit.toPlainText().strip()
-            }
-            
             # إنتاج تقرير PDF
-            success = self.pdf_generator.generate_daily_close_report(report_data, filepath)
+            success = self.pdf_generator.generate_daily_close_report(
+                self.current_close_data, filepath
+            )
             
             if success:
                 QMessageBox.information(
                     self, "نجح",
-                    f"تم حفظ تقرير التقفيل في:\n{filepath}"
+                    f"تم حفظ التقرير في:\n{filepath}"
                 )
                 
                 # فتح الملف
@@ -643,66 +773,15 @@ class DailyCloseWindow(QWidget):
                 else:
                     subprocess.run(['xdg-open', filepath])
                     
-                self.status_label.setText("تم تصدير التقرير")
-                
             else:
-                QMessageBox.critical(
-                    self, "خطأ",
-                    "فشل في إنتاج تقرير PDF"
+                QMessageBox.warning(
+                    self, "تحذير",
+                    "فشل في إنتاج ملف PDF للتقرير"
                 )
                 
         except Exception as e:
             logger.error(f"خطأ في تصدير PDF: {str(e)}")
             QMessageBox.critical(
                 self, "خطأ",
-                f"حدث خطأ في التصدير:\n{str(e)}"
-            )
-    
-    def upload_attachments(self):
-        """رفع المرفقات"""
-        try:
-            file_dialog = QFileDialog()
-            files, _ = file_dialog.getOpenFileNames(
-                self,
-                "اختيار صور الإيصالات",
-                "",
-                "صور (*.png *.jpg *.jpeg *.gif *.bmp);;جميع الملفات (*)"
-            )
-            
-            if files:
-                # إنشاء مجلد المرفقات
-                attachments_dir = "reports/daily/attachments"
-                os.makedirs(attachments_dir, exist_ok=True)
-                
-                uploaded_files = []
-                close_date = self.close_date.date().toString("yyyy-MM-dd")
-                
-                for file_path in files:
-                    # نسخ الملف إلى مجلد المرفقات
-                    import shutil
-                    filename = os.path.basename(file_path)
-                    new_filename = f"{close_date}_{filename}"
-                    new_path = os.path.join(attachments_dir, new_filename)
-                    
-                    shutil.copy2(file_path, new_path)
-                    uploaded_files.append(new_filename)
-                
-                # تحديث قائمة المرفقات
-                if uploaded_files:
-                    files_text = "\n".join([f"• {f}" for f in uploaded_files])
-                    self.attachments_list.setText(files_text)
-                    self.attachments_list.setStyleSheet("color: #27ae60;")
-                    
-                    QMessageBox.information(
-                        self, "نجح",
-                        f"تم رفع {len(uploaded_files)} ملف بنجاح"
-                    )
-                    
-                    self.status_label.setText(f"تم رفع {len(uploaded_files)} مرفق")
-                
-        except Exception as e:
-            logger.error(f"خطأ في رفع المرفقات: {str(e)}")
-            QMessageBox.critical(
-                self, "خطأ",
-                f"حدث خطأ في رفع المرفقات:\n{str(e)}"
+                f"حدث خطأ في تصدير التقرير:\n{str(e)}"
             )

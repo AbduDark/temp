@@ -79,6 +79,24 @@ class Product:
                 SELECT p.*, c.name as category_name 
                 FROM products p 
                 LEFT JOIN categories c ON p.category_id = c.id
+                WHERE (p.name LIKE ? OR p.barcode LIKE ? OR p.model LIKE ?) 
+                AND p.is_active = 1
+                ORDER BY p.name
+                LIMIT 50
+            """, (search_pattern, search_pattern, search_pattern))
+            
+            return [dict(row) for row in result]
+            
+        except Exception as e:
+            print(f"خطأ في البحث عن المنتجات: {str(e)}")
+            return []
+        """البحث عن المنتجات"""
+        try:
+            search_pattern = f"%{search_term}%"
+            result = self.db.execute_query("""
+                SELECT p.*, c.name as category_name 
+                FROM products p 
+                LEFT JOIN categories c ON p.category_id = c.id
                 WHERE p.is_active = 1 AND (
                     p.name LIKE ? OR 
                     p.barcode LIKE ? OR 

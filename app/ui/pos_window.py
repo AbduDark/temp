@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QMessageBox, QDialog, QDialogButtonBox,
                               QCompleter, QHeaderView, QAbstractItemView)
 from PySide6.QtCore import Qt, QStringListModel, Signal
-from PySide6.QtGui import QFont, QDoubleValidator, QIntValidator
+from PySide6.QtGui import QFont, QDoubleValidator, QIntValidator , QColor
 from datetime import datetime
 import logging
 
@@ -114,32 +114,76 @@ class POSWindow(QWidget):
     def create_left_panel(self):
         """إنشاء اللوحة اليسرى"""
         panel = QFrame()
-        panel.setFrameStyle(QFrame.StyledPanel)
+        panel.setFrameStyle(QFrame.NoFrame)
         panel.setStyleSheet("""
             QFrame {
-                background-color: white;
-                border-radius: 10px;
-                padding: 10px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #ffffff, stop: 1 #f8f9fa);
+                border-radius: 20px;
+                padding: 25px;
+                border: 2px solid #e9ecef;
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
             }
         """)
         
         layout = QVBoxLayout(panel)
+        layout.setContentsMargins(25, 25, 25, 25)
+        layout.setSpacing(20)
         
         # عنوان القسم
         title = QLabel("البحث عن المنتجات")
-        title.setFont(QFont("Arial", 16, QFont.Bold))
-        title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        title.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        title.setStyleSheet("""
+            color: #2c3e50; 
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #ecf0f1;
+            border-radius: 10px;
+            border-left: 5px solid #3498db;
+        """)
         layout.addWidget(title)
         
         # شريط البحث
         search_layout = QHBoxLayout()
+        search_layout.setSpacing(15)
         
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("ابحث بالاسم أو الباركود...")
+        self.search_edit.setStyleSheet("""
+            QLineEdit {
+                padding: 12px 15px;
+                border: 2px solid #bdc3c7;
+                border-radius: 10px;
+                font-size: 14px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3498db;
+                background-color: #f8f9fa;
+            }
+        """)
         self.search_edit.textChanged.connect(self.search_products)
         search_layout.addWidget(self.search_edit)
         
         search_button = QPushButton("بحث")
+        search_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 12px 20px;
+                font-weight: bold;
+                font-size: 14px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #1f4e79;
+            }
+        """)
         search_button.clicked.connect(self.search_products)
         search_layout.addWidget(search_button)
         

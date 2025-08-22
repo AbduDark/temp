@@ -193,6 +193,12 @@ class RepairService:
         except Exception as e:
             logger.error(f"خطأ في البحث عن تذاكر الصيانة: {str(e)}")
             return []
+            
+            return [dict(row) for row in result]
+            
+        except Exception as e:
+            logger.error(f"خطأ في البحث عن تذاكر الصيانة: {str(e)}")
+            return []
     
     def get_technician_workload(self, technician_id: int) -> Dict:
         """الحصول على عبء عمل الفني"""

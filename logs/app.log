@@ -1,0 +1,48 @@
+2025-08-22 05:32:53 - mobile_shop_app - INFO - تم تشغيل نظام التسجيل
+2025-08-22 05:32:53 - mobile_shop_app - INFO - ملف السجل: logs\app.log
+2025-08-22 05:32:53 - mobile_shop_app - INFO - بدء تشغيل التطبيق
+2025-08-22 05:32:53 - mobile_shop_app - INFO - تم إعداد المجلدات المطلوبة
+2025-08-22 05:32:54 - mobile_shop_app - INFO - تم إعداد قاعدة البيانات
+2025-08-22 05:35:45 - mobile_shop_app - ERROR - خطأ غير متوقع: 'SettingsWindow' object has no attribute 'create_system_settings_tab'
+2025-08-22 05:37:59 - mobile_shop_app - INFO - تم تشغيل نظام التسجيل
+2025-08-22 05:37:59 - mobile_shop_app - INFO - ملف السجل: logs\app.log
+2025-08-22 05:37:59 - mobile_shop_app - INFO - بدء تشغيل التطبيق
+2025-08-22 05:37:59 - mobile_shop_app - INFO - تم إعداد المجلدات المطلوبة
+2025-08-22 05:37:59 - mobile_shop_app - INFO - تم إعداد قاعدة البيانات
+2025-08-22 05:38:15 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:38:16 - mobile_shop_app - INFO - تم تسجيل دخول المستخدم: admin
+2025-08-22 05:38:45 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:38:47 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:38:58 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:39:15 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:39:45 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:40:15 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:40:45 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:41:11 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:43:03 - mobile_shop_app - INFO - تم تشغيل نظام التسجيل
+2025-08-22 05:43:03 - mobile_shop_app - INFO - ملف السجل: logs\app.log
+2025-08-22 05:43:03 - mobile_shop_app - INFO - بدء تشغيل التطبيق
+2025-08-22 05:43:03 - mobile_shop_app - INFO - تم إعداد المجلدات المطلوبة
+2025-08-22 05:43:03 - mobile_shop_app - INFO - تم إعداد قاعدة البيانات
+2025-08-22 05:43:17 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:43:18 - mobile_shop_app - INFO - تم تسجيل دخول المستخدم: admin
+2025-08-22 05:43:34 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:43:47 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:44:17 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:44:30 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:44:47 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:45:17 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:45:37 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:45:47 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:46:17 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:46:47 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:47:17 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:47:37 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:47:47 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:51:42 - mobile_shop_app - INFO - تم تشغيل نظام التسجيل
+2025-08-22 05:51:42 - mobile_shop_app - INFO - ملف السجل: logs\app.log
+2025-08-22 05:51:42 - mobile_shop_app - INFO - بدء تشغيل التطبيق
+2025-08-22 05:51:42 - mobile_shop_app - INFO - تم إعداد المجلدات المطلوبة
+2025-08-22 05:51:42 - mobile_shop_app - INFO - تم إعداد قاعدة البيانات
+2025-08-22 05:52:03 - mobile_shop_app.dashboard - ERROR - خطأ في تحديث الإحصائيات: unsupported format string passed to NoneType.__format__
+2025-08-22 05:52:04 - mobile_shop_app - INFO - تم تسجيل دخول المستخدم: admin

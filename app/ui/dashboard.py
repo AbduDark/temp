@@ -18,53 +18,78 @@ logger = logging.getLogger(__name__)
 
 class DashboardWidget(QFrame):
     """ويدجت عنصر لوحة التحكم"""
-    
+
     def __init__(self, title, value, icon="", color="#3498db"):
         super().__init__()
         self.setup_ui(title, value, icon, color)
-    
+
     def setup_ui(self, title, value, icon, color):
         """إعداد واجهة العنصر"""
-        self.setFrameStyle(QFrame.StyledPanel)
+        self.setFrameStyle(QFrame.NoFrame)
         self.setStyleSheet(f"""
             QFrame {{
-                background-color: {color};
-                border-radius: 10px;
-                padding: 15px;
-                margin: 5px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {color}, stop: 1 {self.darken_color(color)});
+                border-radius: 15px;
+                padding: 25px;
+                margin: 10px;
+                border: 3px solid rgba(255, 255, 255, 0.2);
+                min-height: 140px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            }}
+            QFrame:hover {{
+                border: 3px solid rgba(255, 255, 255, 0.4);
+                transform: translateY(-2px);
             }}
             QLabel {{
                 color: white;
                 border: none;
+                background: transparent;
             }}
         """)
-        
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
         # الأيقونة والعنوان
         header_layout = QHBoxLayout()
-        
+
         if icon:
             icon_label = QLabel(icon)
-            icon_label.setFont(QFont("Arial", 24))
+            icon_label.setFont(QFont("Segoe UI Emoji", 28))
+            icon_label.setAlignment(Qt.AlignCenter)
             header_layout.addWidget(icon_label)
-        
-        title_label = QLabel(title)
-        title_label.setFont(QFont("Arial", 12, QFont.Bold))
-        header_layout.addWidget(title_label)
+
         header_layout.addStretch()
-        
+
+        title_label = QLabel(title)
+        title_label.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        title_label.setAlignment(Qt.AlignRight)
+        header_layout.addWidget(title_label)
+
         layout.addLayout(header_layout)
-        
+
         # القيمة
         self.value_label = QLabel(str(value))
-        self.value_label.setFont(QFont("Arial", 20, QFont.Bold))
+        self.value_label.setFont(QFont("Segoe UI", 24, QFont.Bold))
         self.value_label.setAlignment(Qt.AlignCenter)
+        self.value_label.setStyleSheet("margin: 10px 0px;")
         layout.addWidget(self.value_label)
-        
+
         layout.addStretch()
-    
+
+    def darken_color(self, hex_color):
+        """تغميق اللون"""
+        from PySide6.QtGui import QColor
+        color = QColor(hex_color)
+        return color.darker(120).name()
+
+    def lighten_color(self, hex_color, factor=1.3):
+        """تفتيح اللون"""
+        color = QColor(hex_color)
+        return color.lighter(int(100 * factor)).name()
+
     def update_value(self, value):
         """تحديث القيمة"""
         self.value_label.setText(str(value))
@@ -72,88 +97,132 @@ class DashboardWidget(QFrame):
 
 class Dashboard(QWidget):
     """لوحة التحكم الرئيسية"""
-    
+
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
         self.setup_ui()
         self.setup_refresh_timer()
-    
+
     def setup_ui(self):
         """إعداد واجهة المستخدم"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(20)
-        
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(25)
+
         # عنوان اللوحة
         title_label = QLabel("لوحة التحكم")
-        title_label.setFont(QFont("Arial", 24, QFont.Bold))
+        title_label.setFont(QFont("Segoe UI", 28, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 20px;")
+        title_label.setStyleSheet("""
+            color: #2c3e50;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                stop: 0 #ecf0f1, stop: 1 #bdc3c7);
+            border-radius: 15px;
+            border: 2px solid #bdc3c7;
+        """)
         layout.addWidget(title_label)
-        
+
         # منطقة التمرير
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("QScrollArea { border: none; }")
-        
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #ecf0f1;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #bdc3c7;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #95a5a6;
+            }
+        """)
+
         scroll_widget = QWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
-        scroll_layout.setSpacing(20)
-        
+        scroll_layout.setContentsMargins(20, 20, 20, 20)
+        scroll_layout.setSpacing(30)
+
         # الإحصائيات السريعة
         self.setup_quick_stats(scroll_layout)
-        
+
         # التنبيهات
         self.setup_alerts(scroll_layout)
-        
+
         # الأنشطة الأخيرة
         self.setup_recent_activities(scroll_layout)
-        
+
         # الأزرار السريعة
         self.setup_quick_actions(scroll_layout)
-        
+
+        # إضافة مساحة في النهاية
+        scroll_layout.addStretch()
+
         scroll_area.setWidget(scroll_widget)
         layout.addWidget(scroll_area)
-    
+
     def setup_quick_stats(self, layout):
         """إعداد الإحصائيات السريعة"""
         stats_frame = QFrame()
-        stats_frame.setFrameStyle(QFrame.StyledPanel)
+        stats_frame.setFrameStyle(QFrame.NoFrame)
         stats_frame.setStyleSheet("""
             QFrame {
-                background-color: white;
-                border-radius: 10px;
-                padding: 15px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #ffffff, stop: 1 #f8f9fa);
+                border-radius: 20px;
+                padding: 30px;
+                border: 2px solid #e9ecef;
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
             }
         """)
-        
+
         stats_layout = QVBoxLayout(stats_frame)
-        
+        stats_layout.setContentsMargins(25, 25, 25, 25)
+        stats_layout.setSpacing(25)
+
         # عنوان القسم
         stats_title = QLabel("الإحصائيات اليومية")
-        stats_title.setFont(QFont("Arial", 16, QFont.Bold))
-        stats_title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        stats_title.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        stats_title.setStyleSheet("""
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #ecf0f1;
+            border-radius: 10px;
+            border-left: 5px solid #3498db;
+        """)
         stats_layout.addWidget(stats_title)
-        
+
         # شبكة الإحصائيات
         stats_grid = QGridLayout()
-        
+        stats_grid.setSpacing(20)
+        stats_grid.setContentsMargins(10, 10, 10, 10)
+
         # إنشاء عناصر الإحصائيات
         self.sales_widget = DashboardWidget("المبيعات اليوم", "0 ر.س", "💰", "#27ae60")
         self.transactions_widget = DashboardWidget("عدد المعاملات", "0", "🧾", "#3498db")
         self.repair_tickets_widget = DashboardWidget("تذاكر الصيانة", "0", "🔧", "#e67e22")
         self.low_stock_widget = DashboardWidget("مخزون منخفض", "0", "📦", "#e74c3c")
-        
+
         # إضافة العناصر للشبكة
         stats_grid.addWidget(self.sales_widget, 0, 0)
         stats_grid.addWidget(self.transactions_widget, 0, 1)
         stats_grid.addWidget(self.repair_tickets_widget, 1, 0)
         stats_grid.addWidget(self.low_stock_widget, 1, 1)
-        
+
         stats_layout.addLayout(stats_grid)
         layout.addWidget(stats_frame)
-    
+
     def setup_alerts(self, layout):
         """إعداد التنبيهات"""
         alerts_frame = QFrame()
@@ -165,21 +234,21 @@ class Dashboard(QWidget):
                 padding: 15px;
             }
         """)
-        
+
         alerts_layout = QVBoxLayout(alerts_frame)
-        
+
         # عنوان القسم
         alerts_title = QLabel("التنبيهات")
         alerts_title.setFont(QFont("Arial", 16, QFont.Bold))
         alerts_title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
         alerts_layout.addWidget(alerts_title)
-        
+
         # منطقة التنبيهات
         self.alerts_container = QVBoxLayout()
         alerts_layout.addLayout(self.alerts_container)
-        
+
         layout.addWidget(alerts_frame)
-    
+
     def setup_recent_activities(self, layout):
         """إعداد الأنشطة الأخيرة"""
         activities_frame = QFrame()
@@ -191,15 +260,15 @@ class Dashboard(QWidget):
                 padding: 15px;
             }
         """)
-        
+
         activities_layout = QVBoxLayout(activities_frame)
-        
+
         # عنوان القسم
         activities_title = QLabel("النشاط الأخير")
         activities_title.setFont(QFont("Arial", 16, QFont.Bold))
         activities_title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
         activities_layout.addWidget(activities_title)
-        
+
         # جدول الأنشطة
         self.activities_table = QTableWidget()
         self.activities_table.setColumnCount(3)
@@ -207,10 +276,10 @@ class Dashboard(QWidget):
         self.activities_table.horizontalHeader().setStretchLastSection(True)
         self.activities_table.setAlternatingRowColors(True)
         self.activities_table.setMaximumHeight(200)
-        
+
         activities_layout.addWidget(self.activities_table)
         layout.addWidget(activities_frame)
-    
+
     def setup_quick_actions(self, layout):
         """إعداد الأزرار السريعة"""
         actions_frame = QFrame()
@@ -222,18 +291,18 @@ class Dashboard(QWidget):
                 padding: 15px;
             }
         """)
-        
+
         actions_layout = QVBoxLayout(actions_frame)
-        
+
         # عنوان القسم
         actions_title = QLabel("إجراءات سريعة")
         actions_title.setFont(QFont("Arial", 16, QFont.Bold))
         actions_title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
         actions_layout.addWidget(actions_title)
-        
+
         # شبكة الأزرار
         buttons_grid = QGridLayout()
-        
+
         # إنشاء الأزرار
         buttons = [
             ("فاتورة جديدة", self.main_window.show_pos, "#27ae60"),
@@ -241,7 +310,7 @@ class Dashboard(QWidget):
             ("إضافة منتج", self.add_product, "#3498db"),
             ("تقفيل يومي", self.main_window.show_daily_close, "#9b59b6")
         ]
-        
+
         for i, (text, callback, color) in enumerate(buttons):
             button = QPushButton(text)
             button.setFont(QFont("Arial", 12, QFont.Bold))
@@ -262,25 +331,25 @@ class Dashboard(QWidget):
                 }}
             """)
             button.clicked.connect(callback)
-            
+
             row = i // 2
             col = i % 2
             buttons_grid.addWidget(button, row, col)
-        
+
         actions_layout.addLayout(buttons_grid)
         layout.addWidget(actions_frame)
-    
+
     def setup_refresh_timer(self):
         """إعداد مؤقت التحديث التلقائي"""
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.refresh_data)
         self.refresh_timer.start(30000)  # تحديث كل 30 ثانية
-    
+
     def darken_color(self, hex_color, factor=0.9):
         """تغميق اللون"""
         color = QColor(hex_color)
         return color.darker(int(100/factor)).name()
-    
+
     def refresh_data(self):
         """تحديث بيانات اللوحة"""
         try:
@@ -289,33 +358,35 @@ class Dashboard(QWidget):
             self.update_recent_activities()
         except Exception as e:
             logger.error(f"خطأ في تحديث بيانات اللوحة: {str(e)}")
-    
+
     def update_daily_stats(self):
         """تحديث الإحصائيات اليومية"""
         try:
             today = date.today().isoformat()
-            
+
             # إحصائيات المبيعات
             sales_summary = self.main_window.pos_service.get_daily_sales_summary(today)
             total_sales = sales_summary.get('total_amount', 0)
             total_transactions = sales_summary.get('total_transactions', 0)
-            
+
             self.sales_widget.update_value(f"{total_sales:.0f} ر.س")
             self.transactions_widget.update_value(str(total_transactions))
-            
+
             # إحصائيات الصيانة
             repair_summary = self.main_window.repair_service.get_repair_summary(today, today)
             open_tickets = repair_summary.get('received_tickets', 0) + repair_summary.get('in_progress_tickets', 0)
-            
+
             self.repair_tickets_widget.update_value(str(open_tickets))
-            
+
             # المخزون المنخفض
             low_stock = self.main_window.inventory_service.get_low_stock_products()
             self.low_stock_widget.update_value(str(len(low_stock)))
-            
+
         except Exception as e:
+            from app.utils.logger import get_logger
+            logger = get_logger('dashboard')
             logger.error(f"خطأ في تحديث الإحصائيات: {str(e)}")
-    
+
     def update_alerts(self):
         """تحديث التنبيهات"""
         try:
@@ -324,9 +395,9 @@ class Dashboard(QWidget):
                 widget = self.alerts_container.itemAt(i).widget()
                 if widget:
                     widget.setParent(None)
-            
+
             alerts = []
-            
+
             # تنبيهات المخزون المنخفض
             low_stock = self.main_window.inventory_service.get_low_stock_products()
             if low_stock:
@@ -335,7 +406,7 @@ class Dashboard(QWidget):
                     'message': f"يوجد {len(low_stock)} منتج بمخزون منخفض",
                     'action': self.main_window.show_inventory
                 })
-            
+
             # تنبيهات الصيانة المتأخرة
             today = date.today()
             week_ago = (today - timedelta(days=7)).isoformat()
@@ -344,14 +415,14 @@ class Dashboard(QWidget):
                 start_date=week_ago,
                 end_date=today.isoformat()
             )
-            
+
             if old_repairs:
                 alerts.append({
                     'type': 'error',
                     'message': f"يوجد {len(old_repairs)} تذكرة صيانة متأخرة (أكثر من أسبوع)",
                     'action': self.main_window.show_repair
                 })
-            
+
             # عرض التنبيهات
             if not alerts:
                 no_alerts = QLabel("لا توجد تنبيهات")
@@ -360,15 +431,15 @@ class Dashboard(QWidget):
             else:
                 for alert in alerts:
                     self.add_alert(alert)
-                    
+
         except Exception as e:
             logger.error(f"خطأ في تحديث التنبيهات: {str(e)}")
-    
+
     def add_alert(self, alert):
         """إضافة تنبيه"""
         alert_frame = QFrame()
         alert_frame.setFrameStyle(QFrame.StyledPanel)
-        
+
         color = "#e74c3c" if alert['type'] == 'error' else "#f39c12"
         alert_frame.setStyleSheet(f"""
             QFrame {{
@@ -382,21 +453,21 @@ class Dashboard(QWidget):
                 border: none;
             }}
         """)
-        
+
         layout = QHBoxLayout(alert_frame)
-        
+
         # رمز التنبيه
         icon = "⚠️" if alert['type'] == 'warning' else "❌"
         icon_label = QLabel(icon)
         layout.addWidget(icon_label)
-        
+
         # رسالة التنبيه
         message_label = QLabel(alert['message'])
         message_label.setFont(QFont("Arial", 10))
         layout.addWidget(message_label)
-        
+
         layout.addStretch()
-        
+
         # زر العمل
         if alert.get('action'):
             action_button = QPushButton("عرض")
@@ -415,15 +486,15 @@ class Dashboard(QWidget):
             """)
             action_button.clicked.connect(alert['action'])
             layout.addWidget(action_button)
-        
+
         self.alerts_container.addWidget(alert_frame)
-    
+
     def update_recent_activities(self):
         """تحديث الأنشطة الأخيرة"""
         try:
             # الحصول على آخر الأنشطة
             activities = []
-            
+
             # آخر المبيعات
             recent_sales = self.main_window.pos_service.get_recent_sales(5)
             for sale in recent_sales:
@@ -432,7 +503,7 @@ class Dashboard(QWidget):
                     'type': 'مبيعات',
                     'details': f"فاتورة #{sale['id']} - {sale['final_amount']:.0f} ر.س"
                 })
-            
+
             # آخر تذاكر الصيانة
             recent_repairs = self.main_window.repair_service.get_repair_tickets(limit=5)
             for repair in recent_repairs:
@@ -441,14 +512,14 @@ class Dashboard(QWidget):
                     'type': 'صيانة',
                     'details': f"تذكرة #{repair['id']} - {repair['device_info']}"
                 })
-            
+
             # ترتيب حسب الوقت
             activities.sort(key=lambda x: x['time'], reverse=True)
             activities = activities[:10]  # أحدث 10 أنشطة
-            
+
             # تحديث الجدول
             self.activities_table.setRowCount(len(activities))
-            
+
             for row, activity in enumerate(activities):
                 # تنسيق الوقت
                 try:
@@ -456,14 +527,14 @@ class Dashboard(QWidget):
                     time_str = time_obj.strftime("%H:%M")
                 except:
                     time_str = activity['time'][:10]
-                
+
                 self.activities_table.setItem(row, 0, QTableWidgetItem(time_str))
                 self.activities_table.setItem(row, 1, QTableWidgetItem(activity['type']))
                 self.activities_table.setItem(row, 2, QTableWidgetItem(activity['details']))
-            
+
         except Exception as e:
             logger.error(f"خطأ في تحديث الأنشطة: {str(e)}")
-    
+
     def add_product(self):
         """فتح نافذة إضافة منتج"""
         self.main_window.show_inventory()

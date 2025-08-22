@@ -313,23 +313,44 @@ class RepairWindow(QWidget):
     def create_toolbar(self):
         """إنشاء شريط الأدوات"""
         toolbar = QFrame()
-        toolbar.setFrameStyle(QFrame.StyledPanel)
+        toolbar.setFrameStyle(QFrame.NoFrame)
         toolbar.setStyleSheet("""
             QFrame {
-                background-color: white;
-                border-radius: 5px;
-                padding: 10px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #ffffff, stop: 1 #f8f9fa);
+                border-radius: 15px;
+                padding: 25px;
+                border: 2px solid #e9ecef;
+                margin-bottom: 20px;
             }
         """)
         
         layout = QHBoxLayout(toolbar)
+        layout.setContentsMargins(25, 20, 25, 20)
+        layout.setSpacing(20)
         
         # البحث
         search_label = QLabel("البحث:")
+        search_label.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        search_label.setStyleSheet("color: #2c3e50; margin-right: 10px;")
         layout.addWidget(search_label)
         
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("ابحث برقم التذكرة أو اسم العميل أو IMEI...")
+        self.search_edit.setStyleSheet("""
+            QLineEdit {
+                padding: 12px 15px;
+                border: 2px solid #bdc3c7;
+                border-radius: 10px;
+                font-size: 14px;
+                background-color: white;
+                min-width: 300px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3498db;
+                background-color: #f8f9fa;
+            }
+        """)
         self.search_edit.textChanged.connect(self.search_tickets)
         layout.addWidget(self.search_edit)
         

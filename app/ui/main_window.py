@@ -203,61 +203,114 @@ class MainWindow(QMainWindow):
         """إعداد نمط التطبيق"""
         style = """
         QMainWindow {
-            background-color: #f5f5f5;
+            background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1,
+                stop: 0 #f8f9fa, stop: 1 #e9ecef);
+            font-family: 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
         }
         
         QMenuBar {
-            background-color: #2c3e50;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 #1a252f, stop: 1 #2c3e50);
             color: white;
             font-weight: bold;
-            padding: 4px;
+            padding: 10px 20px;
+            font-size: 15px;
+            border-bottom: 3px solid #3498db;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
         
         QMenuBar::item {
             background-color: transparent;
-            padding: 4px 8px;
-            margin: 2px;
-            border-radius: 4px;
+            padding: 12px 18px;
+            margin: 2px 6px;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s ease;
         }
         
         QMenuBar::item:selected {
-            background-color: #3498db;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 #3498db, stop: 1 #2980b9);
+            color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        QMenuBar::item:hover {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 #52c0f5, stop: 1 #3498db);
         }
         
         QToolBar {
-            background-color: #34495e;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 #34495e, stop: 0.5 #2c3e50, stop: 1 #1a252f);
             border: none;
-            spacing: 3px;
-            padding: 5px;
+            spacing: 12px;
+            padding: 15px 25px;
+            font-size: 15px;
+            min-height: 70px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         
         QToolBar QToolButton {
-            background-color: #34495e;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 rgba(255, 255, 255, 0.1), stop: 1 rgba(255, 255, 255, 0.05));
             color: white;
-            border: none;
-            padding: 8px;
-            margin: 2px;
-            border-radius: 6px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            padding: 15px 25px;
+            margin: 6px 8px;
+            border-radius: 12px;
             font-weight: bold;
+            font-size: 15px;
+            min-width: 140px;
+            min-height: 45px;
+            transition: all 0.3s ease;
         }
         
         QToolBar QToolButton:hover {
-            background-color: #3498db;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 #3498db, stop: 1 #2980b9);
+            border: 2px solid #1abc9c;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
         }
         
         QToolBar QToolButton:pressed {
-            background-color: #2980b9;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 #2980b9, stop: 1 #1f4e79);
+            border: 2px solid #16a085;
+            transform: translateY(0px);
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.6);
         }
         
         QStatusBar {
-            background-color: #2c3e50;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 #2c3e50, stop: 0.5 #1a252f, stop: 1 #0f1419);
             color: white;
             font-weight: bold;
+            font-size: 14px;
+            padding: 10px 20px;
+            border-top: 2px solid #3498db;
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
         }
         
         QStatusBar QLabel {
             color: white;
-            margin: 0 10px;
+            margin: 0 18px;
+            padding: 8px 15px;
+            border-radius: 6px;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 rgba(255, 255, 255, 0.15), stop: 1 rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 13px;
+        }
+        
+        QStackedWidget {
+            background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1,
+                stop: 0 #ffffff, stop: 1 #f8f9fa);
+            border-radius: 15px;
+            margin: 15px;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
         }
         """
         
@@ -394,7 +447,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(
                 self, "خطأ", 
-                f"حدث خطأ في استعادة النسخة الاحتياطية:\n{str(e)}"
+                f"حدث خطأ في استعادة النسخة الاحتياطية: {str(e)}"
             )
     
     def show_user_management(self):

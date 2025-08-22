@@ -9,9 +9,9 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                               QTableWidget, QTableWidgetItem, QTabWidget,
                               QTextEdit, QFrame, QGroupBox, QMessageBox,
                               QDateEdit, QHeaderView, QAbstractItemView,
-                              QProgressBar, QFileDialog)
+                              QProgressBar, QFileDialog ,QScrollArea)
 from PySide6.QtCore import Qt, QDate, QThread, Signal
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtGui import QFont, QColor 
 from datetime import datetime, date, timedelta
 import json
 import csv
@@ -75,7 +75,8 @@ class ReportsWindow(QWidget):
     def setup_ui(self):
         """إعداد واجهة المستخدم"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
         
         # شريط الأدوات
         toolbar = self.create_toolbar()
@@ -83,6 +84,31 @@ class ReportsWindow(QWidget):
         
         # التبويبات
         self.tab_widget = QTabWidget()
+        self.tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: 2px solid #e9ecef;
+                border-radius: 15px;
+                background-color: white;
+                padding: 20px;
+            }
+            QTabBar::tab {
+                background-color: #ecf0f1;
+                padding: 12px 20px;
+                margin: 2px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: bold;
+                color: #2c3e50;
+                min-width: 120px;
+            }
+            QTabBar::tab:selected {
+                background-color: #3498db;
+                color: white;
+            }
+            QTabBar::tab:hover {
+                background-color: #bdc3c7;
+            }
+        """)
         
         # تبويب المبيعات
         sales_tab = self.create_sales_tab()
@@ -109,6 +135,19 @@ class ReportsWindow(QWidget):
         # شريط التقدم
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #bdc3c7;
+                border-radius: 10px;
+                text-align: center;
+                padding: 2px;
+                background-color: #ecf0f1;
+            }
+            QProgressBar::chunk {
+                background-color: #3498db;
+                border-radius: 8px;
+            }
+        """)
         layout.addWidget(self.progress_bar)
     
     def create_toolbar(self):
@@ -184,12 +223,48 @@ class ReportsWindow(QWidget):
     def create_sales_tab(self):
         """إنشاء تبويب تقارير المبيعات"""
         tab = QWidget()
-        layout = QVBoxLayout(tab)
+        main_layout = QVBoxLayout(tab)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # منطقة التمرير
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("""
+            QScrollArea { 
+                border: none; 
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #ecf0f1;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #bdc3c7;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+        """)
+        
+        scroll_widget = QWidget()
+        layout = QVBoxLayout(scroll_widget)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(25)
         
         # إعدادات التقرير
         settings_frame = QFrame()
-        settings_frame.setFrameStyle(QFrame.StyledPanel)
+        settings_frame.setFrameStyle(QFrame.NoFrame)
+        settings_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f8f9fa;
+                border-radius: 15px;
+                padding: 20px;
+                border: 2px solid #e9ecef;
+            }
+        """)
         settings_layout = QHBoxLayout(settings_frame)
+        settings_layout.setContentsMargins(20, 15, 20, 15)
+        settings_layout.setSpacing(20)
         
         settings_layout.addWidget(QLabel("تجميع حسب:"))
         self.sales_group_combo = QComboBox()
@@ -245,6 +320,12 @@ class ReportsWindow(QWidget):
         self.sales_details_table = QTableWidget()
         self.sales_details_table.setAlternatingRowColors(True)
         layout.addWidget(self.sales_details_table)
+        
+        # إضافة مساحة في النهاية
+        layout.addStretch()
+        
+        scroll_area.setWidget(scroll_widget)
+        main_layout.addWidget(scroll_area)
         
         return tab
     

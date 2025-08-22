@@ -214,6 +214,8 @@ class ReportService:
                     AVG(CASE 
                         WHEN rt.completed_date IS NOT NULL AND rt.received_date IS NOT NULL 
                         THEN julianday(rt.completed_date) - julianday(rt.received_date) 
+                        END) as avg_completion_days NULL AND rt.received_date IS NOT NULL 
+                        THEN julianday(rt.completed_date) - julianday(rt.received_date) 
                         END) as avg_completion_days
                 FROM repair_tickets rt
                 LEFT JOIN users u ON rt.technician_id = u.id

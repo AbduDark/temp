@@ -262,21 +262,8 @@ class Customer:
             return None
             
         except Exception as e:
-            print(f"خطأ في إدارة بيانات العميل: {str(e)}")
+            from app.utils.logger import get_logger
+            logger = get_logger('customer')
+            logger.error(f"خطأ في الحصول على أو إنشاء العميل: {str(e)}")
             return None
-    
-    def search_customers(self, search_term: str) -> List[Dict]:
-        """البحث عن العملاء"""
-        try:
-            search_pattern = f"%{search_term}%"
-            result = self.db.execute_query("""
-                SELECT * FROM customers 
-                WHERE name LIKE ? OR phone LIKE ? OR email LIKE ?
-                ORDER BY name
-            """, (search_pattern, search_pattern, search_pattern))
-            
-            return [dict(row) for row in result]
-            
-        except Exception as e:
-            print(f"خطأ في البحث عن العملاء: {str(e)}")
-            return []
+               
